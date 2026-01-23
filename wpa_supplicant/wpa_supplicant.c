@@ -1783,6 +1783,15 @@ static void wpas_update_allowed_key_mgmt(struct wpa_supplicant *wpa_s,
 		return;
 	}
 
+#ifdef CONFIG_MTK_COMMON
+	if (ssid->group_mgmt_cipher &
+	    (WPA_CIPHER_AES_128_CMAC | WPA_CIPHER_BIP_GMAC_256)) {
+		ssid->group_mgmt_cipher |=
+		(WPA_CIPHER_AES_128_CMAC | WPA_CIPHER_BIP_GMAC_256);
+		wpa_dbg(wpa_s, MSG_DEBUG, "RSN: enable AES_128_CMAC | BIP_GMAC_256");
+	}
+#endif /* CONFIG_MTK_COMMON */
+
 #ifdef CONFIG_SAE
 	sae_pwe = wpas_get_ssid_sae_pwe(wpa_s, ssid);
 	if (sae_pwe != SAE_PWE_HUNT_AND_PECK &&
@@ -2213,9 +2222,11 @@ int wpa_supplicant_set_suites(struct wpa_supplicant *wpa_s,
 #endif /* CONFIG_SAE */
 	if (bss && is_6ghz_freq(bss->freq) &&
 	    wpas_get_ssid_pmf(wpa_s, ssid) != MGMT_FRAME_PROTECTION_REQUIRED) {
+#ifndef CONFIG_MTK_COMMON
 		wpa_dbg(wpa_s, MSG_DEBUG, "RSN: Force MFPR=1 on 6 GHz");
 		wpa_sm_set_param(wpa_s->wpa, WPA_PARAM_MFP,
 				 MGMT_FRAME_PROTECTION_REQUIRED);
+#endif /* CONFIG_MTK_COMMON */
 	}
 #ifdef CONFIG_TESTING_OPTIONS
 	wpa_sm_set_param(wpa_s->wpa, WPA_PARAM_FT_RSNXE_USED,
@@ -4548,6 +4559,9 @@ static void wpas_start_assoc_cb(struct wpa_radio_work *work, int deinit)
        struct ieee80211_vht_capabilities vhtcaps;
        struct ieee80211_vht_capabilities vhtcaps_mask;
 #endif /* CONFIG_VHT_OVERRIDES */
+#ifdef CONFIG_MTK_COMMON
+	const u8 *mdie;
+#endif /* CONFIG_MTK_COMMON */
 
 	wpa_s->roam_in_progress = false;
 #ifdef CONFIG_WNM
@@ -4656,7 +4670,13 @@ static void wpas_start_assoc_cb(struct wpa_radio_work *work, int deinit)
 
 	wpa_supplicant_cancel_scan(wpa_s);
 
-	wpa_clear_keys(wpa_s, bss ? bss->bssid : NULL);
+#ifdef CONFIG_MTK_COMMON
+	if (wpa_s->wpa_state == WPA_COMPLETED)
+		wpa_printf(MSG_INFO, "Don't clear key while in a connected state");
+	else
+#endif /* CONFIG_MTK_COMMON */
+		wpa_clear_keys(wpa_s, bss ? bss->bssid : NULL);
+
 	use_crypt = 1;
 	cipher_pairwise = wpa_s->pairwise_cipher;
 	cipher_group = wpa_s->group_cipher;
